@@ -9,21 +9,12 @@ Go to https://ngrok.com/
 Sign up (free account is enough)
 
 After logging in, you'll see your AuthToken like:
-
-arduino
-Copy
-Edit
 ./ngrok config add-authtoken <your-token>
+
 ✅ Step 2: Install ngrok
 🖥️ On macOS (using brew)
-bash
-Copy
-Edit
 brew install ngrok/ngrok/ngrok
 🖥️ On Ubuntu/Debian
-bash
-Copy
-Edit
 sudo snap install ngrok
 🖥️ Or Download Binary (All OS)
 Go to https://ngrok.com/download
@@ -32,41 +23,24 @@ Download, unzip, and move ngrok to a location in your $PATH (e.g., /usr/local/bi
 
 ✅ Step 3: Configure Your Auth Token
 Run the command with your token:
-
-bash
-Copy
-Edit
 ngrok config add-authtoken <your-ngrok-token>
+
 ✅ Step 4: Start Your Flask App Locally
 Let’s say your app runs on http://127.0.0.1:5000, run:
-
-bash
-Copy
-Edit
 python app.py
 (Ensure your app.run() in Flask uses host='0.0.0.0' if needed)
 
 ✅ Step 5: Expose Local Port via Ngrok
 Now run:
-
-bash
-Copy
-Edit
 ngrok http 5000
 You’ll see output like:
 
-nginx
-Copy
-Edit
 Forwarding http://abc123.ngrok.io -> http://localhost:5000
 Use that abc123.ngrok.io link to access your local server remotely 🌍
 
 ✅ Step 6 (Optional): Run in Background or Use Config File
 If you want to make it persistent:
 
-yaml
-Copy
-Edit
 # ~/.ngrok/ngrok.yml
 authtoken: <your-token>
 tunnels:
@@ -77,5 +51,6 @@ tunnels:
 3. run ngrok
 ngrok start flask
 
-4. Refer to front-end
+4. Every time run ngrok, the public url will change, how to change the front-end
+Refer to front-end
 https://travel-wardrobe.vercel.app/
