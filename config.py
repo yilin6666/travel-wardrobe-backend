@@ -1,5 +1,4 @@
 # config.py
-
 import os
 import json
 from llama_index.core import Settings
@@ -128,9 +127,10 @@ Please follow these instructions:
 2. Ensure the description is **natural and specific enough** to retrieve relevant results (e.g., "sunny beach in summer with clear blue sky and rocks").
 3. Do **not invent any missing fields**—only use the ones provided.
 4. Do **not generate or describe an AI-generated image**—your goal is to help retrieve **real-world photos** only.
+5. Only use the fields provided. Combine them into a compact and relevant set of **search keywords**, not full sentences.
 
 Output format:
-Search Query: <your search query>
+Search Query: <space-separated-keywords>
 
 Now generate the query for the following fields:
 {field_dict}
@@ -156,14 +156,15 @@ Output format:
 Fashion Prompt: <your single-sentence description>
 """
 
+# try_on.py
 TRYON_PROMPT = """
 Seamlessly overlay the clothing and accessories from the second reference image onto the person in the main image.
-Replace the original background of the main image with the environment depicted in the third reference image.
+Replace the original background of the main image with a realistic environment described as: "{background_description}".
 Ensure a highly realistic and photorealistic try-on effect by accurately aligning the clothing with the subject’s posture, body shape, and orientation.
 Maintain the subject’s identity, including facial features, hairstyle, skin tone, and body proportions, without distortion or alteration.
 Harmonize lighting, shadows, and color tones across all image elements to achieve consistent and natural integration.
 Do not modify the facial structure, expression, hairstyle, or any identity-related attributes from the main image. Treat the face area as fixed and immutable.
-Ensure clean edges, proper clothing fitting, and realistic texture rendering of the clothing in the new background scene.
+Ensure clean edges, proper clothing fitting, and realistic texture rendering of the clothing in the described background scene.
 Ensure the subject’s size and position appear naturally integrated into the new background, with consistent perspective and appropriate scale relative to the environment.
 """
 

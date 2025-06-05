@@ -15,4 +15,4 @@ urls = [
 # Convert and print
 for i, url in enumerate(urls):
     b64 = image_url_to_base64(url)
-    print(f"Image {i+1} Base64: {b64[:60]}")  # print the beginning only
+    print(f"Image {i+1} Base64: {b64[:60]}")

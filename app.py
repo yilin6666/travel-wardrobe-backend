@@ -19,23 +19,11 @@ from llama_index.core.node_parser import SimpleNodeParser
 from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.core import StorageContext, load_index_from_storage
+from base64 import b64decode
+import re
 
 app = Flask(__name__)
 CORS(app)
-
-# pre load
-# Load embedding model + index
-
-#     docstore=SimpleDocumentStore.from_persist_dir(index_path),
-#     vector_store=SimpleVectorStore.from_persist_dir(index_path),
-#     index_store=SimpleIndexStore.from_persist_dir(index_path)
-# )
-# index = load_index_from_storage(storage_context)
-    
-# # load json
-# merged_json_path = "merged_json.json"
-# with open(merged_json_path, "r", encoding="utf-8") as f:
-#     raw_dict = json.load(f)
 
 @app.route('/admin/submit', methods=['POST'])
 def submit():
@@ -51,11 +39,19 @@ def submit():
         req_id = str(uuid.uuid4())
 
         # Download image and save locally
-        response = requests.get(fullbodyshot_url)
-        if response.status_code != 200:
-            return jsonify({"errNo": 2, "errMsg": "Failed to download image"}), 400
+        if fullbodyshot_url.startswith("data:image"):
+            # Extract base64 content after comma
+            base64_data = re.sub("^data:image/.+;base64,", "", fullbodyshot_url)
+            image_data = b64decode(base64_data)
+            image = Image.open(BytesIO(image_data))
+        else:
+            # Fallback to URL download
+            response = requests.get(fullbodyshot_url)
+            if response.status_code != 200:
+                return jsonify({"errNo": 2, "errMsg": "Failed to download image"}), 400
+            image = Image.open(BytesIO(response.content))
 
-        image = Image.open(BytesIO(response.content))
+
         USER_IMAGE_DIR = os.path.join(OUTPUT_DIR, req_id)
         os.makedirs(USER_IMAGE_DIR, exist_ok=True)  
         local_img_path = os.path.join(USER_IMAGE_DIR, f"{req_id}_fullbody.jpg")
@@ -74,40 +70,45 @@ def submit():
             flattened_result1.extend(r1_list)
 
         flattened_result2 = []
-        seen_urls = set()
-        for r2_list in result.get("result2", []):
-            for img in r2_list:
-                if img["url"] in seen_urls:
-                    continue
-                try:
-                    response = requests.get(img["url"], timeout=10)
-                    response.raise_for_status()
-                    img_base64 = base64.b64encode(BytesIO(response.content).read()).decode()
+        # seen_urls = set()
+        for img in result.get("result2", []):
+            for key, text in img.items():
+                if key.startswith("text"):
                     flattened_result2.append({
-                        "url": img["url"],
-                        # "base64": img_base64
+                        key: text
                     })
-                except Exception as e:
-                    print(f"⚠️ Failed to fetch or encode result2 image {img['url']}: {e}")
 
         flattened_result3 = []
-        for r3_list in result.get("result3", []):
-            for img in r3_list:
-                try:
-                    local_path = img["url"].lstrip("/")
-                    with open(local_path, "rb") as f:
-                        img_base64 = base64.b64encode(f.read()).decode()
-                    flattened_result3.append({
-                        "url": img["url"],
-                        # "base64": img_base64
-                    })
-                except Exception as e:
-                    print(f"⚠️ Failed to load result3 image {img['url']}: {e}")
+        for r3_item in result.get("result3", []):
+            if isinstance(r3_item, list):
+                flattened_result3.extend(r3_item)
+            else:
+                flattened_result3.append(r3_item)
+
+        # Process flattened_result3 for base64 (optional)
+        final_result3 = []
+        for i, img in enumerate(flattened_result3):
+            try:
+                for key, url in img.items():
+                    if key.startswith("text"):
+                        local_path = url.lstrip("/")
+                        with open(local_path, "rb") as f:
+                            img_base64 = base64.b64encode(f.read()).decode()
+                        final_result3.append({
+                            key: url,
+                            "base64": img_base64
+                        })
+            except Exception as e:
+                print(f"⚠️ Failed to load result3 image {url}: {e}")
+
+        flattened_result3 = final_result3
+
 
         return jsonify({
             "errNo": 0,
             "errMsg": "",
             "data": {
+                "id": req_id,
                 "profile": fullbodyshot_url,
                 "query1": result.get("query1", []),
                 "result1": flattened_result1,
@@ -119,65 +120,79 @@ def submit():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"errNo": 500, "errMsg": str(e)}), 500
+    
+    print(json.dumps(results_store, indent=2))
 
 @app.route('/admin/getResults', methods=['GET'])
 def get_results():
     req_id = request.args.get("id")
-    selected = request.args.getlist("selectedImageList")
-
     result = results_store.get(req_id)
+    print("DEBUG - result fetched from results_store:")
+    print(json.dumps(result, indent=2)) 
     if result is None:
         return jsonify({"errNo": 4, "errMsg": "Result not found"}), 404
 
-    # Extract existing cloth image
     tryon_data = []
     profile_path = result["profile"]
+    result2 = result.get("result2", [])
     result3 = result.get("result3", [])
-    existing_tryon_count = sum(
-    1 for scenario in result3 for item in scenario if item.get("type", "").startswith("final_tryon_")
-)
-    tryon_counter = existing_tryon_count + 1
 
-    for scenario_index, scenario_results in enumerate(result.get("result3", [])):
-        if not scenario_results:
+    # Collecting all clothing paths
+    clothing_mapping = []
+    for item in result3:
+        print("DEBUG - current item in result3:", item)  
+        if not isinstance(item, dict):
             continue
-        clothing_path = None
-        for item in scenario_results:
-            url = item.get("url")
-            if url and url.endswith(".png") and "clothing" in url:
-                clothing_path = url.lstrip("/")
-                break
-        if not clothing_path:
-            continue  # Skip if no valid clothing URL found
-
-        for bg_url in selected:
-            tryon_path, tryon_b64 = generate_final_tryon(
-                req_id=req_id,
-                clothing_path=clothing_path,
-                background_url=bg_url,
-                full_body_path=profile_path,
-                tryon_counter=tryon_counter
-            )
-            tryon_counter += 1
-            if tryon_path and tryon_b64:
-                tryon_data.append({
-                    "image": tryon_path,
-                    # "base64": tryon_b64,
-                    "text": f"final_tryon_{tryon_counter - 1}"
+        for key, url in item.items():
+            if key.startswith("text"):
+                index = key.replace("text", "")
+                clothing_mapping.append({
+                    "index": index,
+                    "clothing_path": url.lstrip("/")
                 })
 
-    # Update result3 in memory
-    for i, new_tryon in enumerate(tryon_data):
-        if i < len(result["result3"]):
-            result["result3"][i].append(new_tryon)
-        else:
-            result["result3"].append([new_tryon])
+    print("clothing_mapping:", clothing_mapping)
+
+    # Initialize counter
+    tryon_counter = 1
+
+    # Generate try-on images
+    for mapping in clothing_mapping:
+        index = mapping["index"]
+        clothing_path = mapping["clothing_path"]
+
+        background_query = ""
+        for bg_item in result2:
+            bg_query = bg_item.get(f"text{index}")
+            if bg_query:
+                background_query = bg_query
+                break
+
+        print(f"Generating try-on for clothing: {clothing_path}")
+        print(f"Using background query: {background_query}")
+
+        tryon_path, tryon_b64 = generate_final_tryon(
+            req_id=req_id,
+            clothing_path=clothing_path,
+            background_query=background_query,
+            full_body_path=profile_path,
+            tryon_counter=tryon_counter
+        )
+        tryon_counter += 1
+
+        if tryon_path and tryon_b64:
+            tryon_data.append({
+                "image": tryon_path,
+                "base64": tryon_b64,
+                "text": f"final_tryon_{tryon_counter - 1}"
+            })
 
     return jsonify({
         "errNo": 0,
         "errMsg": "",
         "data": {"list": tryon_data}
     })
+
 
 
 @app.route('/')
@@ -190,18 +205,3 @@ def test_connection():
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5050)
-
-
-# test example (input in terminal)
-# curl -X POST http://localhost:5050/admin/submit \  -H "Content-Type: application/json" \
-#   -d '{
-#         "fullbodyshot": "https://images.pexels.com/photos/4708397/pexels-photo-4708397.jpeg",
-#         "description": "I am a 28-year-old woman with a slender body, long straight blonde hair, and a warm skin tone. I will be attending my best friend’s wedding in Tuscany in mid-July. I know it will be quite warm and sunny, and the wedding will be outdoors in a vineyard with a rustic setting. The dress code is semi-formal, so I want elegant yet breathable dresses in soft pastel tones, along with accessories like a sun hat and pearl earrings. Please suggest a full outfit and provide images."
-#       }'
-
-
-# curl -G http://localhost:5050/admin/getResults \
-# --data-urlencode "id=e488626b-cb89-485a-96d0-f2fe9285b30c" \        # need to replace id using the one generate from /admin/submit
-# --data-urlencode "selectedImageList=https://static.vecteezy.com/system/resources/previews/060/845/738/large_2x/golden-hour-vineyard-landscape-rows-of-grapevines-at-sunset-free-photo.jpg" \
-# --data-urlencode "selectedImageList=https://static.vecteezy.com/system/resources/previews/059/892/368/large_2x/scenic-vineyard-landscape-with-lush-rows-of-grapevines-stretching-towards-majestic-mountains-under-a-clear-blue-sky-photo.jpg"
-

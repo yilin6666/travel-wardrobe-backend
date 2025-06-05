@@ -3,79 +3,10 @@ import json
 import base64
 import requests
 import re
-from config import GEMINI_API_KEY, GEMINI_API_URL, PROMPT_TEMPLATE_IMAGE, PROMPT_TEMPLATE_TEXT, OPENAI_API_KEY
+from config import GEMINI_API_KEY, GEMINI_API_URL, PROMPT_TEMPLATE_IMAGE, PROMPT_TEMPLATE_TEXT
 
 API_KEY = GEMINI_API_KEY
 API_URL = GEMINI_API_URL
-# API_KEY = "AIzaSyCasR3JT3PbkmMVPuYSoY7G7B-kSkLhQA0"
-# API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key={API_KEY}"
-
-# PROMPT_TEMPLATE_IMAGE = """
-# Your Objective:
-# • You will be given a user-uploaded image.
-# • You must extract only Person-Related Features using the controlled vocabulary.
-
-# Extraction Rules:
-# • Extract the following fields: Gender, Age, Skin Tone, Hairstyle, Pose, Face Shape, Body Shape.
-# • "Gender", "Age", and "Skin Tone" are mandatory. If any of these three fields cannot be determined, generate a polite clarification request to re-upload a clearer image.
-# • Return only a valid JSON object if successful.
-
-# Controlled Vocabulary——Use only the following fixed values when assigning labels:
-# Person-Related Features
-# • Skin Tone: Classify visible skin tone. **Only return one of the following values**: "Very fair", "Fair", "Light", "Medium", "Olive", "Brown", "Dark", "Unknown".
-# • Gender: Determine the person’s gender. **Only return one of the following values**: "Male", "Female", "Unknown".
-# • Hairstyle: Describe the person's hairstyle based on visible features.
-# - **Hair Color**: Indicate the natural or dyed hair color in one word (e.g., black, brown, blonde, red, gray, white).
-# - **Hair Type**: Specify the natural hair texture. **Only return one of the following values**: "Straight", "Wavy", "Curly", "Coily", "Unknown".
-# - **Hair Length**: Describe the visible length of hair.  **Only return one of the following values**: "Bald", "Short", "Medium", "Long", "Very long", "Unknown".
-# - **Specific Hairstyle**: Describe the particular styling or arrangement (e.g., Ponytail, Bun, Loose, Braided, Side-parted, Afro, Bob cut, Pixie cut, Buzz cut, Undercut).
-# • Age: Estimate the age group. **Only return one of the following values**: "Child", "Teenager", "Young adult", "Middle-aged", "Elderly", "Unknown".
-# • Pose: Describe the person’s posture or movement. **Only return one of the following values**: "Standing", "Sitting", "Lying", "Walking", "Running", "Climbing stairs", "Kneeling", "Leaning", "Unknown".
-# • Face Shape: Identify the face shape. **Only return one of the following values**: "Oval", "Round", "Square", "Heart-shaped", "Diamond", "Pear", "Rectangular", "Unknown".
-# • Body Shape: Classify the body shape. **Only return one of the following values**: "I", "H", "A", "V", "X", "O", "Unknown".
-# """
-
-# PROMPT_TEMPLATE_TEXT = """
-# Your Objective:
-# • You will be given a user-provided text description.
-# • If the description contains multiple Travel Time, Travel Location, or Purpose of Travel, you must treat each as a separate scenario and generate a separate JSON block for each one.
-# • You must extract Clothing Fashion Style and Environment-Related Features for each scenario based on the text.
-
-# Extraction Rules:
-# • Carefully analyze the text. If it contains multiple Travel Time, Travel Location, and Purpose of Travel (e.g., "attending a wedding and then going on vacation"), split the content and generate one JSON block per scenario.
-# • For each scenario, internally infer Travel Time, Travel Location, and Purpose of Travel.
-# • Use these inferred factors to reason about and extract:
-#   - Clothing Fashion Style
-#   - Environment-Related Features (Season, Weather, Time of Day, Lighting, Location, Temperature, Scene Environment, Scene Type, Scene Features, Ambience)
-# • Only include Clothing Fashion Style and Environment-Related Features fields in the final JSON output.
-# • Do not explicitly include Travel Time, Travel Location, or Purpose of Travel fields in the output JSON.
-# • Your final output should be a list of JSON objects, each representing one inferred context.
-
-# Controlled Vocabulary——Use only the following fixed values when assigning labels:
-# Clothing Fashion Style: Classify the overall fashion style of the outfit. **Only return one of the following values**:
-# "Commuter", "Casual", "Pastoral", "Campus", "Sports", "Party", "Date", "Vacation", "Festival", "Homewear", "Religious", "Traditional", "Artistic exhibition", "Wedding", "Stage", "Professional outdoor", "Unknown".
-
-# Environment-Related Features
-# • Season: Infer the season based on the setting and clothing. **Only return one of the following values**: "Spring", "Summer", "Autumn", "Winter", "Unknown".
-# • Weather: Describe the weather. **Only return one of the following values**: "Sunny", "Cloudy", "Rainy", "Stormy", "Snowy", "Windy", "Foggy", "Hazy", "Indoor", "Unknown".
-# • Time of Day: **Only return one or more of the following values**: "Morning", "Noon", "Afternoon", "Evening", "Night", "Unknown".
-# • Lighting style: **Only return one or more of the following values**: "Natural light", "Artificial light", "Ambient light", "Direct light", "Diffused light", "Reflected light", "Backlight", "Side light", "Top light", "Low light".
-# • Location: Specify the location type (e.g., park, beach, urban setting, indoor) and note any cultural or architectural landmarks.
-# • Temperature: Estimate the temperature range in Celsius based on the clothing and background. **Return one of the following ranges only**:
-#   - "Below 0"
-#   - "0-5"
-#   - "5-10"
-#   - "10-15"
-#   - "15-20"
-#   - "20-25"
-#   - "25-30"
-#   - "30-35"
-#   - "Above 35"
-# • Scene Environment: **Only return "Indoor" or "Outdoor"**.
-# • Scene Type: Classify the scene type (e.g., studio, street, natural landscape, runway).
-# • Scene Features: Highlight significant features (e.g., trees, sand, water, walls, decorations).
-# • Ambience: (e.g., calm, casual, serene, energetic, bold, joyful, playful, cold, warm, romantic, mysterious, dramatic, luxurious, minimalist, nostalgic, dreamy, festive, melancholic, peaceful, vibrant, edgy).
-# """
 
 def encode_image(image_path):
     with open(image_path, "rb") as img_file:
@@ -216,7 +147,7 @@ def extract_valid_environment_features():
             continue
         try:
             data = json.loads(env_str)
-            if isinstance(data, dict):  # ensure list
+            if isinstance(data, dict):  
                 data = [data]
             all_valid = all(validate_environment_features(env) for env in data)
             if all_valid:
@@ -245,5 +176,3 @@ def main():
 
         print(f"[✓] Saved: {json_file} + {txt_file}")
 
-if __name__ == "__main__":
-    main()
